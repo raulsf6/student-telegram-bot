@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 
 def collection_to_string(collection):
     """
@@ -22,3 +22,8 @@ def parse_event_args(args):
     # TODO: Ensure that the format of string_date is ok
     date = datetime.strptime(string_date, '%d/%m/%Y %H:%M')
     return date, title, content
+
+def parse_reminder_args(args):
+    reminder_time = time(int(args[0]), int(args[1]), 0)
+    message = 'Reminder: {}'.format(' '.join(args[2:]))
+    return reminder_time, message

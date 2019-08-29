@@ -1,6 +1,7 @@
 import os
 import mongoengine as me
-from utils import collection_to_string, parse_event_args
+from utils import collection_to_string, parse_event_args, parse_reminder_args
+from emoji import emojize
 from models import Event
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
@@ -12,21 +13,21 @@ TOKEN = os.environ['TELEGRAM_TOKEN']
 ################
 
 
-def start(bot, update):
+def start(update, context):
     """
     Simple start command to introduce the bot functionality
     """
     update.message.reply_text('Hey! Type /agenda to check for events')
 
 
-def unknown(bot, update):
+def unknown(update, context):
     """
     Executed when command is not implemented
     """
     update.message.reply_text("Sorry, I didn't understand that command.")
 
 
-def agenda(bot, update):
+def agenda(update, context):
     """
     Displays all the events in the agenda
     """
@@ -36,16 +37,18 @@ def agenda(bot, update):
         message = collection_to_string(events)
         update.message.reply_text(message)
     else:
-        update.message.reply_text('The agenda is empty')
+        message = emojize(
+            'The agenda is empty :books:. Type /event to create a new one!', use_aliases=True)
+        update.message.reply_text(message)
 
 
-def event(bot, update, args):
+def event(update, context):
     """
     Adds a new event to the agenda or modifies an existing one.
     The arguments must have the following format: dd/mm/aaaaa hh:mm content
     """
-    if len(args) >= 3:
-        date, title, content = parse_event_args(args)
+    if len(context.args) >= 4:
+        date, title, content = parse_event_args(context.args)
         # Creates a new event document
         event = Event(title=title, date=date, content=content)
         event.save()  # Save event in the db
@@ -53,11 +56,14 @@ def event(bot, update, args):
             'New event added: {}'.format(event.to_string()))
     else:
         update.message.reply_text('Invalid command format')
-    
-def remove(bot, update, args):
-    title = args[0]
+
+
+def remove(update, context):
+    """
+    Removes an event from the agenda (it needs the event title as argument)
+    """
+    title = context.args[0]
     event = Event.objects(title=title)
-    print(event)
     if event:
         event.delete()
         update.message.reply_text('Event {} has been removed'.format(title))
@@ -65,18 +71,42 @@ def remove(bot, update, args):
         update.message.reply_text('Event {} not found'.format(title))
 
 
+def timer_message(context):
+    """
+    Callback executed when reminder is trigered
+    """
+    context.bot.send_message(chat_id=context.job.context[0], text=context.job.context[1])
+
+
+def reminder(update, context):
+    """
+    Sets a reminder at the specified time.
+    The arguments must be like: hour minute message
+    """
+    if len(context.args) >= 3:
+        time, message = parse_reminder_args(context.args)
+        job_queue = context.job_queue
+        job_queue.run_daily(timer_message, time, context=[
+                            update.message.chat_id, message])
+        update.message.reply_text(emojize(
+            ':clock3: Reminder will trigger at {} :clock3:'.format(time), use_aliases=True))
+    else:
+        update.message.reply_text('Invalid command format')
+
+
 # Connects to the mongo database (localhost by default)
 me.connect(db='Agenda')
 
 # Gets the bot updater and dispatcher
-updater = Updater(TOKEN)
+updater = Updater(TOKEN, use_context=True)
 dp = updater.dispatcher
 
 # Main commands
 dp.add_handler(CommandHandler('start', start))
 dp.add_handler(CommandHandler('agenda', agenda))
-dp.add_handler(CommandHandler('event', event, pass_args=True))
-dp.add_handler(CommandHandler('remove', remove, pass_args=True))
+dp.add_handler(CommandHandler('event', event))
+dp.add_handler(CommandHandler('remove', remove))
+dp.add_handler(CommandHandler('reminder', reminder))
 
 # Not implemented commands
 dp.add_handler(MessageHandler(Filters.command, unknown))
