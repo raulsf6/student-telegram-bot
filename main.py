@@ -26,10 +26,11 @@ def agenda(bot, update):
     """Implementation of the agenda command"""
     update.message.reply_text("Not implemented")
 
+
 def add_event(bot, update, args):
     """Implementation of the addevent command"""
     update.message.reply_text("Not implemented")
-    
+
 
 # Connects to the mongo database (localhost by default)
 me.connect()
@@ -41,7 +42,7 @@ dp = updater.dispatcher
 # Main commands
 dp.add_handler(CommandHandler('start', start))
 dp.add_handler(CommandHandler('agenda', agenda))
-dp.add_handler(CommandHandler('addevent', add_event))
+dp.add_handler(CommandHandler('addevent', add_event, pass_args=True))
 
 # Not implemented commands
 dp.add_handler(MessageHandler(Filters.command, unknown))
