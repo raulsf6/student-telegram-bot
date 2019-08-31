@@ -74,6 +74,7 @@ def event(update, context):
     return DATE
 
 
+#Conversational state
 def date(update, context):
     try:
         date = create_date(update.message.text)
