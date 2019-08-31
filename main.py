@@ -1,5 +1,4 @@
 import os
-import logging
 import mongoengine as me
 from telegram.ext import Updater
 from commands import (
