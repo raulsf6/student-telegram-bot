@@ -106,3 +106,4 @@ venv.bak/
 # Bot
 .vscode
 .idea
+*.code-workspace
