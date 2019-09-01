@@ -4,7 +4,7 @@ def collection_to_string(collection):
     """
     Converts a collection of documents to a string to be sent by the bot
     """
-    string = ''
+    string = '*Agenda* \n'
     for doc in collection:
         string += '{}\n\n'.format(doc.to_string())
     return string
@@ -16,3 +16,7 @@ def parse_reminder_args(args):
 
 def create_date(string):
     return datetime.strptime(string, '%d/%m/%Y')
+
+def remove_messages_chain(messages):
+    for message in messages[::-1]:
+        message.delete()

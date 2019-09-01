@@ -8,10 +8,20 @@ from datetime import datetime
 class Event(me.Document):
     title = me.StringField(primary_key=True)
     date = me.DateTimeField()
-    content = me.StringField()
-    last_modified = me.DateTimeField(default=datetime.utcnow())
+    description = me.StringField()
+    last_modification = me.DateTimeField(default=datetime.utcnow)
 
     def to_string(self):
-        return '{} - {}\n{}\nLast modified:{}'.format(self.date, self.title, self.content, self.last_modified)
+        return '{} - {}\n{}\nLast modified:{}'.format(self.date, self.title, self.description, self.last_modification)
 
-    meta = {'collection': 'Events'}
+    meta = {'collection': 'Events', 'allow_inheritance': True}
+    
+class Exam(Event):
+    professor = me.StringField()
+    subject = me.StringField()
+    exam_type = me.StringField()
+    classroom = me.StringField()
+    
+
+class Deadline(Event):
+    moodle = me.StringField()

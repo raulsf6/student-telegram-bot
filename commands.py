@@ -1,16 +1,21 @@
-from utils import collection_to_string, parse_reminder_args, create_date
+from utils import (
+    collection_to_string,
+    parse_reminder_args,
+    create_date,
+    remove_messages_chain
+)
 from emoji import emojize
 from models import Event
 from telegram.ext import CommandHandler, MessageHandler, Filters, ConversationHandler
 
-DATE, TITLE, CONTENT = range(3)
+DATE, TITLE, DESCRIPTION, EXAM_TYPE, PROFESSOR, SUBJECT, CLASSROOM = range(7)
 
 
 def start(update, context):
     """
     Simple start command to introduce the bot functionality
     """
-    update.message.reply_text('Hey! Type /agenda to check for events')
+    update.message.reply_text('Hola! Escribe /agenda para ver los eventos guardados')
 
 
 def agenda(update, context):
@@ -21,10 +26,10 @@ def agenda(update, context):
     events = Event.objects
     if len(events) > 0:
         message = collection_to_string(events)
-        update.message.reply_text(message)
+        update.message.reply_markdown(message)
     else:
         message = emojize(
-            'The agenda is empty :books:. Type /event to create a new one!', use_aliases=True)
+            'La agenda está vacía :books:. Escribe /event para crear un nuevo evento!', use_aliases=True)
         update.message.reply_text(message)
 
 
@@ -36,9 +41,9 @@ def remove(update, context):
     event = Event.objects(title=title)
     if event:
         event.delete()
-        update.message.reply_text('Event {} has been removed'.format(title))
+        update.message.reply_text("El evento '{}' ha sido eliminado".format(title))
     else:
-        update.message.reply_text('Event {} not found'.format(title))
+        update.message.reply_text("No se encuentra el evento '{}'".format(title))
 
 
 def timer_message(context):
@@ -60,61 +65,89 @@ def reminder(update, context):
         job_queue.run_daily(timer_message, time, context=[
                             update.message.chat_id, message])
         update.message.reply_text(emojize(
-            ':clock3: Reminder will trigger at {} :clock3:'.format(time), use_aliases=True))
+            ':clock3: El recordatorio se activará a las {} :clock3:'.format(time), use_aliases=True))
     else:
-        update.message.reply_text('Invalid command format')
+        update.message.reply_text('Formato inválido')
 
 
 # Event creation
 
 def event(update, context):
-    user = update.message.from_user.first_name
-    update.message.reply_text(
-        "Hi {}! Introduce the date of the event with the format dd/mm/yyyy".format(user))
+    reply = update.message.reply_text("Introduce la fecha del evento con el formato dd/mm/yyyy")
+    context.user_data['messages'] = [reply]
+
     return DATE
 
 
 #Conversational state
 def date(update, context):
-    try:
+    context.user_data['messages'].append(update.message)
+    try:    
         date = create_date(update.message.text)
-        context.chat_data['date'] = date
-        update.message.reply_text("Now introduce the title of the event")
+        context.user_data['date'] = date
+        reply = update.message.reply_text("Introduce un titulo para el evento")
+        context.user_data['messages'].append(reply)
     except ValueError:
-        update.message.reply_text(
-            "Bad format, introduce the date again with format dd/mm/yyyy")
+        reply = update.message.reply_text(
+            "Formato incorrecto, recuerda que el formato es dd/mm/yyyy")
+        context.user_data['messages'].append(reply)
         return DATE
 
     return TITLE
 
 
 def title(update, context):
-    context.chat_data['title'] = update.message.text
-    update.message.reply_text("Now introduce the content")
+    context.user_data['title'] = update.message.text
+    reply = update.message.reply_text("Ahora introduce una descripción del evento")
+    context.user_data['messages'].extend([update.message, reply])
 
-    return CONTENT
+    return DESCRIPTION
 
 
-def content(update, context):
-    context.chat_data['content'] = update.message.text
-    event = Event(date=context.chat_data['date'], title=context.chat_data['title'], content=context.chat_data['content'])
+def description(update, context):
+    context.user_data['description'] = update.message.text
+    context.user_data['messages'].append(update.message)
+    event = Event(date=context.user_data['date'], title=context.user_data['title'], description=context.user_data['description'])
     event.save()
-    update.message.reply_text('New event added: {}'.format(event.to_string()))
+    context.bot.send_message(chat_id=update.message.chat_id, text="---- Nuevo evento añadido ----\n {}".format(event.to_string()))
+    remove_messages_chain(context.user_data['messages'])
+    return ConversationHandler.END
+
+def exam(update, context):
+    pass
+
+def classroom(update, context):
+    pass
+
+def professor(update, context):
+    pass
+
+def exam_type(update, context):
+    pass
+
+def subject(update, context):
+    pass
 
 
 def cancel(update, context):
-    update.message.reply_text('Event canceled')
-    return -1
+    context.bot.send_message(chat_id=update.message.chat_id, text='Evento cancelado')
+    context.user_data['messages'].append(update.message)
+    remove_messages_chain(context.user_data['messages'])
+    return ConversationHandler.END
 
 
 event_handler = ConversationHandler(
-    entry_points=[CommandHandler('event', event)],
+    entry_points=[CommandHandler('event', event), CommandHandler('exam', exam)],
     states={
         DATE: [MessageHandler(Filters.text, date)],
         TITLE: [MessageHandler(Filters.text, title)],
-        CONTENT: [MessageHandler(Filters.text, content)]
+        DESCRIPTION: [MessageHandler(Filters.text, description)],
+        EXAM_TYPE: [MessageHandler(Filters.text, description)],
+        PROFESSOR: [MessageHandler(Filters.text, description)],
+        SUBJECT: [MessageHandler(Filters.text, description)],
+        CLASSROOM: [MessageHandler(Filters.text, description)]
     },
-    fallbacks=[CommandHandler('cancel', cancel)]
+    fallbacks=[CommandHandler('cancel', cancel)],
 )
 
 start_handler = CommandHandler('start', start)
