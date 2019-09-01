@@ -7,21 +7,21 @@ from datetime import datetime
 
 class Event(me.Document):
     title = me.StringField(primary_key=True)
-    date = me.DateTimeField()
+    start = me.DateTimeField(required=True)
+    end = me.DateTimeField()
     description = me.StringField()
     last_modification = me.DateTimeField(default=datetime.utcnow)
 
     def to_string(self):
-        return '{} - {}\n{}\nLast modified:{}'.format(self.date, self.title, self.description, self.last_modification)
+        return 'Titulo: {}\nDescripcion: {}\nFecha: {} - {}'.format(self.title, self.description, self.start, self.end)
 
-    meta = {'collection': 'Events', 'allow_inheritance': True}
-    
+    meta = {'collection': 'Events', 'allow_inheritance' : True}
+
 class Exam(Event):
-    professor = me.StringField()
-    subject = me.StringField()
-    exam_type = me.StringField()
-    classroom = me.StringField()
-    
+    subject = me.StringField(required=True)
+    professor = me.StringField(required=True)
+    exam_type = me.StringField(required=True)
+    classroom = me.StringField(required=True)
 
-class Deadline(Event):
-    moodle = me.StringField()
+class Submission(Event):
+    moodle = me.StringField(required=True)

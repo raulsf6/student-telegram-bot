@@ -1,4 +1,6 @@
 from datetime import datetime, time
+import re
+
 
 def collection_to_string(collection):
     """
@@ -9,13 +11,24 @@ def collection_to_string(collection):
         string += '{}\n\n'.format(doc.to_string())
     return string
 
+
 def parse_reminder_args(args):
     reminder_time = time(int(args[0]), int(args[1]), 0)
     message = 'Reminder: {}'.format(' '.join(args[2:]))
     return reminder_time, message
 
-def create_date(string):
-    return datetime.strptime(string, '%d/%m/%Y')
+
+def parse_date(string):
+    args = string.split(' ')
+    if len(args) == 1:
+        return datetime.strptime(args[0], '%d/%m/%Y'), None
+    elif len(args) == 2:
+        return datetime.strptime('{} {}'.format(args[0], args[1]), '%d/%m/%Y %H:%M'), None
+    else:
+        start = datetime.strptime('{} {}'.format(args[0], args[1]), '%d/%m/%Y %H:%M')
+        end = datetime.strptime('{} {}'.format(args[0], args[2]), '%d/%m/%Y %H:%M')
+        return start, end
+
 
 def remove_messages_chain(messages):
     for message in messages[::-1]:
