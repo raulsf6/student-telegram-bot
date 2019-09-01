@@ -100,6 +100,8 @@ def content(update, context):
     event = Event(date=context.chat_data['date'], title=context.chat_data['title'], content=context.chat_data['content'])
     event.save()
     update.message.reply_text('New event added: {}'.format(event.to_string()))
+    
+    return -1
 
 
 def cancel(update, context):
