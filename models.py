@@ -1,5 +1,6 @@
 import mongoengine as me
 from datetime import datetime
+from utils import create_modifications_string
 
 # Aqui pondremos la estructura de una colección de mongo (como una tabla en SQL).
 # Cada clase representa la estructura de un documento (como una fila en SQL).
@@ -7,21 +8,24 @@ from datetime import datetime
 
 class Modification(me.EmbeddedDocument):
     author = me.StringField(required=True)
-    date = me.DateTimeField(default=datetime.utcnow)
+    date = me.DateTimeField(default=datetime.now)
     
 class Event(me.Document):
     title = me.StringField(primary_key=True)
-    start = me.DateTimeField(required=True)
+    start = me.DateTimeField(required=True) # TODO: Eventos sin hora empiezan a las 00:00
     end = me.DateTimeField()
     description = me.StringField()
-    last_modification = Modification()
+    modifications = me.EmbeddedDocumentListField(Modification)
 
     def __str__(self):
-        return 'Titulo: {}\nDescripcion: {}\nFecha: {} - {}'.format(
+        end = '- {}'.format(self.end) if not (self.end is None) else ''
+        mods_string = create_modifications_string(self.modifications)
+        return 'Titulo: {}\nDescripcion: {}\nFecha: {} {}\nModifications:\n{}'.format(
             self.title,
             self.description,
             self.start,
-            self.end
+            end,
+            mods_string
         )
 
     meta = {'collection': 'Events', 'allow_inheritance': True}
@@ -34,17 +38,14 @@ class Exam(Event):
     classroom = me.StringField(required=True)
 
     def __str__(self):
-        return 'Titulo: {}\nDescripcion: {}\nFecha: {} - {}\nAsignatura: {}\nTipo: {}\nProfesor: {}\nAula: {}\n'.format(
-            self.title,
-            self.description,
-            self.start,
-            self.end,
-            self.subject,
-            self.exam_type,
-            self.professor,
+        exam_str = 'Asignatura: {}\nTipo: {}\nProfesor: {}\nAula: {}\n'.format(
+            self.subject, 
+            self.exam_type, 
+            self.professor, 
             self.classroom
         )
+        return exam_str + super().__str__()
+        
 
-
-class Submission(Event):
+class Deadline(Event):
     moodle = me.StringField(required=True)

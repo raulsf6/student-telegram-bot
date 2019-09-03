@@ -5,8 +5,9 @@ from utils import (
     remove_messages_chain
 )
 from emoji import emojize
-from models import Event, Modification, Exam, Submission
+from models import Event, Modification, Exam, Deadline
 from telegram.ext import CommandHandler, MessageHandler, Filters, ConversationHandler
+from telegram import KeyboardButton as Button, ReplyKeyboardMarkup, ReplyKeyboardRemove
 
 DATE, TITLE, DESCRIPTION, EXAM_TYPE, PROFESSOR, SUBJECT, CLASSROOM = range(7)
 
@@ -15,8 +16,7 @@ def start(update, context):
     """
     Simple start command to introduce the bot functionality
     """
-    update.message.reply_text(
-        'Hola! Escribe /agenda para ver los eventos guardados')
+    update.message.reply_text('Hola! Escribe /agenda para ver los eventos guardados')
 
 
 def agenda(update, context):
@@ -32,7 +32,6 @@ def agenda(update, context):
         message = emojize(
             'La agenda está vacía :books:. Escribe /event para crear un nuevo evento!', use_aliases=True)
         update.message.reply_text(message)
-
 
 def remove(update, context):
     """
@@ -79,6 +78,7 @@ def event(update, context):
     reply = update.message.reply_text(
         "Introduce la fecha y opcionalmente las horas de inicio y fin del evento con el formato dd/mm/yyyy hh:mm hh:mm. Si no se introduce ninguna hora se interpretará como que el evento dura todo el dia")
     context.user_data['messages'] = [reply]
+    context.user_data['event'] = Event()
 
     return DATE
 
@@ -86,21 +86,20 @@ def event(update, context):
 def exam(update, context):
     reply = update.message.reply_text("¿De qué asignatura es el examen?")
     context.user_data['messages'] = [reply]
-
+    context.user_data['event'] = Exam()
     return SUBJECT
 
 
 def subject(update, context):
-    context.user_data['subject'] = update.message.text
-    reply = update.message.reply_text(
-        "¿El examen es de tipo teórico o práctico?")
+    context.user_data['event'].subject = update.message.text
+    reply = update.message.reply_text("¿El examen es de tipo teórico o práctico?")
     context.user_data['messages'].extend([update.message, reply])
 
     return EXAM_TYPE
 
 
 def exam_type(update, context):
-    context.user_data['exam_type'] = update.message.text
+    context.user_data['event'].exam_type = update.message.text
     reply = update.message.reply_text("¿Quién es el profesor del examen?")
     context.user_data['messages'].extend([update.message, reply])
 
@@ -108,7 +107,7 @@ def exam_type(update, context):
 
 
 def professor(update, context):
-    context.user_data['professor'] = update.message.text
+    context.user_data['event'].professor = update.message.text
     reply = update.message.reply_text("¿En qué aula es el examen?")
     context.user_data['messages'].extend([update.message, reply])
 
@@ -116,7 +115,7 @@ def professor(update, context):
 
 
 def classroom(update, context):
-    context.user_data['classroom'] = update.message.text
+    context.user_data['event'].classroom = update.message.text
     reply = update.message.reply_text(
         "Introduce la fecha y opcionalmente las horas de inicio y fin con el formato dd/mm/yyyy hh:mm hh:mm. Si no se introduce ninguna hora se interpretará como que dura todo el dia")
     context.user_data['messages'].extend([update.message, reply])
@@ -126,24 +125,24 @@ def classroom(update, context):
 
 # Conversational state
 def date(update, context):
-    context.user_data['messages'].append(update.message)
     try:
         start, end = parse_date(update.message.text)
-        context.user_data['start'] = start
-        context.user_data['end'] = end
-        reply = update.message.reply_text("Introduce un titulo")
-        context.user_data['messages'].append(reply)
     except ValueError:
         reply = update.message.reply_text(
             "Formato incorrecto, recuerda que el formato es dd/mm/yyyy hh:mm hh:mm y que las horas son opcionales")
         context.user_data['messages'].append(reply)
         return DATE
 
+    context.user_data['event'].start = start
+    context.user_data['event'].end = end
+    reply = update.message.reply_text("Introduce un titulo")
+    context.user_data['messages'].extend([update.message, reply])
+
     return TITLE
 
 
 def title(update, context):
-    context.user_data['title'] = update.message.text
+    context.user_data['event'].title = update.message.text
     reply = update.message.reply_text(
         "Para terminar introduce una descripción (en un examen por ejemplo estaria bien poner los temas que caen)")
     context.user_data['messages'].extend([update.message, reply])
@@ -152,22 +151,27 @@ def title(update, context):
 
 
 def description(update, context):
-    context.user_data['description'] = update.message.text
+    context.user_data['event'].description = update.message.text
+    modification = Modification(author=update.message.from_user.username)
+    context.user_data['event'].modifications = [modification]
     context.user_data['messages'].append(update.message)
-    event = Event(start=context.user_data['start'], end=context.user_data['end'],
-                  title=context.user_data['title'], description=context.user_data['description'])
-    event.save()
-    context.bot.send_message(chat_id=update.message.chat_id,
-                             text="---- Nuevo evento añadido ----\n {}".format(event.to_string()))
-    remove_messages_chain(context.user_data['messages'])
+    save_event(update, context)
+    
     return ConversationHandler.END
 
 
+def save_event(update, context):
+    event = context.user_data['event']
+    event.save()
+    context.bot.send_message(chat_id=update.message.chat_id, text="---- Nuevo evento añadido ----\n{}".format(event.__str__()))
+    remove_messages_chain(context.user_data['messages'])
+
+
 def cancel(update, context):
-    context.bot.send_message(
-        chat_id=update.message.chat_id, text='Evento cancelado')
+    context.bot.send_message(chat_id=update.message.chat_id, text='Evento cancelado')
     context.user_data['messages'].append(update.message)
     remove_messages_chain(context.user_data['messages'])
+    
     return ConversationHandler.END
 
 
@@ -175,7 +179,7 @@ def cancel(update, context):
 event_handler = ConversationHandler(
     entry_points=[CommandHandler('event', event),
                   CommandHandler('exam', exam)],
-    states={
+    states={    
         DATE: [MessageHandler(Filters.text, date)],
         TITLE: [MessageHandler(Filters.text, title)],
         DESCRIPTION: [MessageHandler(Filters.text, description)],
