@@ -5,7 +5,7 @@ from utils import (
     remove_messages_chain
 )
 from emoji import emojize
-from models import Event
+from models import Event, Modification, Exam, Submission
 from telegram.ext import CommandHandler, MessageHandler, Filters, ConversationHandler
 
 DATE, TITLE, DESCRIPTION, EXAM_TYPE, PROFESSOR, SUBJECT, CLASSROOM = range(7)
@@ -83,6 +83,47 @@ def event(update, context):
     return DATE
 
 
+def exam(update, context):
+    reply = update.message.reply_text("¿De qué asignatura es el examen?")
+    context.user_data['messages'] = [reply]
+
+    return SUBJECT
+
+
+def subject(update, context):
+    context.user_data['subject'] = update.message.text
+    reply = update.message.reply_text(
+        "¿El examen es de tipo teórico o práctico?")
+    context.user_data['messages'].extend([update.message, reply])
+
+    return EXAM_TYPE
+
+
+def exam_type(update, context):
+    context.user_data['exam_type'] = update.message.text
+    reply = update.message.reply_text("¿Quién es el profesor del examen?")
+    context.user_data['messages'].extend([update.message, reply])
+
+    return PROFESSOR
+
+
+def professor(update, context):
+    context.user_data['professor'] = update.message.text
+    reply = update.message.reply_text("¿En qué aula es el examen?")
+    context.user_data['messages'].extend([update.message, reply])
+
+    return CLASSROOM
+
+
+def classroom(update, context):
+    context.user_data['classroom'] = update.message.text
+    reply = update.message.reply_text(
+        "Introduce la fecha y opcionalmente las horas de inicio y fin con el formato dd/mm/yyyy hh:mm hh:mm. Si no se introduce ninguna hora se interpretará como que dura todo el dia")
+    context.user_data['messages'].extend([update.message, reply])
+
+    return DATE
+
+
 # Conversational state
 def date(update, context):
     context.user_data['messages'].append(update.message)
@@ -90,7 +131,7 @@ def date(update, context):
         start, end = parse_date(update.message.text)
         context.user_data['start'] = start
         context.user_data['end'] = end
-        reply = update.message.reply_text("Introduce un titulo para el evento")
+        reply = update.message.reply_text("Introduce un titulo")
         context.user_data['messages'].append(reply)
     except ValueError:
         reply = update.message.reply_text(
@@ -104,7 +145,7 @@ def date(update, context):
 def title(update, context):
     context.user_data['title'] = update.message.text
     reply = update.message.reply_text(
-        "Para terminar introduce una descripción del evento")
+        "Para terminar introduce una descripción (en un examen por ejemplo estaria bien poner los temas que caen)")
     context.user_data['messages'].extend([update.message, reply])
 
     return DESCRIPTION
@@ -122,26 +163,6 @@ def description(update, context):
     return ConversationHandler.END
 
 
-def exam(update, context):
-    pass
-
-
-def classroom(update, context):
-    pass
-
-
-def professor(update, context):
-    pass
-
-
-def exam_type(update, context):
-    pass
-
-
-def subject(update, context):
-    pass
-
-
 def cancel(update, context):
     context.bot.send_message(
         chat_id=update.message.chat_id, text='Evento cancelado')
@@ -150,6 +171,7 @@ def cancel(update, context):
     return ConversationHandler.END
 
 
+# Commands definition
 event_handler = ConversationHandler(
     entry_points=[CommandHandler('event', event),
                   CommandHandler('exam', exam)],
@@ -157,10 +179,10 @@ event_handler = ConversationHandler(
         DATE: [MessageHandler(Filters.text, date)],
         TITLE: [MessageHandler(Filters.text, title)],
         DESCRIPTION: [MessageHandler(Filters.text, description)],
-        EXAM_TYPE: [MessageHandler(Filters.text, description)],
-        PROFESSOR: [MessageHandler(Filters.text, description)],
-        SUBJECT: [MessageHandler(Filters.text, description)],
-        CLASSROOM: [MessageHandler(Filters.text, description)]
+        EXAM_TYPE: [MessageHandler(Filters.text, exam_type)],
+        PROFESSOR: [MessageHandler(Filters.text, professor)],
+        SUBJECT: [MessageHandler(Filters.text, subject)],
+        CLASSROOM: [MessageHandler(Filters.text, classroom)]
     },
     fallbacks=[CommandHandler('cancel', cancel)],
 )
