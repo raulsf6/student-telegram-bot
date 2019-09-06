@@ -12,7 +12,8 @@ class Modification(me.EmbeddedDocument):
     
 class Event(me.Document):
     title = me.StringField(primary_key=True)
-    start = me.DateTimeField(required=True) # TODO: Eventos sin hora empiezan a las 00:00
+    chat_id = me.IntField(required=True)
+    start = me.DateTimeField(required=True)
     end = me.DateTimeField()
     description = me.StringField()
     modifications = me.EmbeddedDocumentListField(Modification)

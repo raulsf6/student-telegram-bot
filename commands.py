@@ -162,8 +162,9 @@ def description(update, context):
 
 def save_event(update, context):
     event = context.user_data['event']
+    event.chat_id = update.message.chat_id
     event.save()
-    context.bot.send_message(chat_id=update.message.chat_id, text="---- Nuevo evento añadido ----\n{}".format(event.__str__()))
+    context.bot.send_message(chat_id=event.chat_id, text="---- Nuevo evento añadido ----\n{}".format(str(event)))
     remove_messages_chain(context.user_data['messages'])
 
 

@@ -8,7 +8,7 @@ def collection_to_string(collection):
     """
     string = '*Agenda* \n'
     for doc in collection:
-        string += '{}\n\n'.format(doc.__str__())
+        string += '{}\n\n'.format(str(doc))
     return string
 
 
@@ -41,5 +41,5 @@ def remove_messages_chain(messages):
 def create_modifications_string(modifications):
     string = ''
     for m in modifications:
-        string += '\t -> {} - {}'.format(m.author, m.date)
+        string += '\t -> {} - {}\n'.format(m.author, m.date)
     return string
