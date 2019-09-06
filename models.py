@@ -6,9 +6,13 @@ from utils import create_modifications_string
 # Cada clase representa la estructura de un documento (como una fila en SQL).
 # El nombre de la colección se especifica en la variable meta de la clase Document
 
+def date():
+    return datetime.now().replace(microsecond=0)
+
+
 class Modification(me.EmbeddedDocument):
     author = me.StringField(required=True)
-    date = me.DateTimeField(default=datetime.now)
+    date = me.DateTimeField(default=date)
     
 class Event(me.Document):
     title = me.StringField(primary_key=True)

@@ -6,7 +6,8 @@ from commands import (
     agenda_handler,
     remove_handler,
     reminder_handler,
-    event_handler
+    event_handler,
+    mod_event_handler
 )
 from extra_handlers import (
     error,
@@ -30,8 +31,9 @@ if __name__ == "__main__":
     dp.add_handler(remove_handler)
     dp.add_handler(reminder_handler)
     dp.add_handler(event_handler)
+    dp.add_handler(mod_event_handler)
     dp.add_handler(unknown_command)
-
+    
     # Logging error handler
     dp.add_error_handler(error)
 

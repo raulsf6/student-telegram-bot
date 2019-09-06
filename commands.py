@@ -5,6 +5,7 @@ from utils import (
     remove_messages_chain
 )
 from emoji import emojize
+from mongoengine.queryset.visitor import Q
 from models import Event, Modification, Exam, Deadline
 from telegram.ext import CommandHandler, MessageHandler, Filters, ConversationHandler
 from telegram import KeyboardButton as Button, ReplyKeyboardMarkup, ReplyKeyboardRemove
@@ -176,6 +177,13 @@ def cancel(update, context):
     return ConversationHandler.END
 
 
+def mod_event(update, context):
+    title = context.args[0]
+    event = Event.objects.get(Q(title=title) & Q(chat_id=update.message.chat_id))
+    event.modify(push__modifications=Modification(author=update.message.from_user.username))
+    context.bot.send_message(chat_id=event.chat_id, text="---- Evento modificado ----\n{}".format(str(event)))
+
+
 # Commands definition
 event_handler = ConversationHandler(
     entry_points=[CommandHandler('event', event),
@@ -196,3 +204,4 @@ start_handler = CommandHandler('start', start)
 agenda_handler = CommandHandler('agenda', agenda)
 remove_handler = CommandHandler('remove', remove)
 reminder_handler = CommandHandler('reminder', reminder)
+mod_event_handler = CommandHandler('mod', mod_event)
