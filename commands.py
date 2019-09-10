@@ -2,22 +2,29 @@ from utils import (
     collection_to_string,
     parse_reminder_args,
     parse_date,
-    remove_messages_chain
+    remove_messages_chain,
+    show_candidate_events
 )
 from emoji import emojize
-from mongoengine.queryset.visitor import Q
 from models import Event, Modification, Exam, Deadline
 from telegram.ext import CommandHandler, MessageHandler, Filters, ConversationHandler
-from telegram import KeyboardButton as Button, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import InlineKeyboardButton as Button, InlineKeyboardMarkup, ReplyKeyboardRemove
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
 
-DATE, TITLE, DESCRIPTION, EXAM_TYPE, PROFESSOR, SUBJECT, CLASSROOM = range(7)
+DATE, TITLE, DESCRIPTION, EXAM_TYPE, PROFESSOR, SUBJECT, CLASSROOM, GROUP = range(8)
+MULTIPLE_OPTIONS, MOD_SELECTION, MOD_APPLY = range(3)
+EVENT_MOD_KEYBOARD = ReplyKeyboardMarkup([['Titulo', 'Descripcion'], ['Inicio', 'Fin'], ['Terminar']], one_time_keyboard=True)
+
+def show_keyboard_options(update, context):
+    update.message.reply_text('Selecciona el dato que quieres modificar', reply_markup=EVENT_MOD_KEYBOARD)
 
 
 def start(update, context):
     """
     Simple start command to introduce the bot functionality
     """
-    update.message.reply_text('Hola! Escribe /agenda para ver los eventos guardados')
+    update.message.reply_text(
+        'Hola! Escribe /agenda para ver los eventos guardados')
 
 
 def agenda(update, context):
@@ -33,6 +40,7 @@ def agenda(update, context):
         message = emojize(
             'La agenda está vacía :books:. Escribe /event para crear un nuevo evento!', use_aliases=True)
         update.message.reply_text(message)
+
 
 def remove(update, context):
     """
@@ -93,7 +101,8 @@ def exam(update, context):
 
 def subject(update, context):
     context.user_data['event'].subject = update.message.text
-    reply = update.message.reply_text("¿El examen es de tipo teórico o práctico?")
+    reply = update.message.reply_text(
+        "¿El examen es de tipo teórico o práctico?")
     context.user_data['messages'].extend([update.message, reply])
 
     return EXAM_TYPE
@@ -101,6 +110,15 @@ def subject(update, context):
 
 def exam_type(update, context):
     context.user_data['event'].exam_type = update.message.text
+    reply = update.message.reply_text(
+        "¿En qué grupo es el examen? Escribe 1, 2 o 3 para los practicos y 0 para grupo de teoria")
+    context.user_data['messages'].extend([update.message, reply])
+
+    return GROUP
+
+
+def exam_group(update, context):
+    context.user_data['event'].group = update.message.text
     reply = update.message.reply_text("¿Quién es el profesor del examen?")
     context.user_data['messages'].extend([update.message, reply])
 
@@ -153,11 +171,9 @@ def title(update, context):
 
 def description(update, context):
     context.user_data['event'].description = update.message.text
-    modification = Modification(author=update.message.from_user.username)
-    context.user_data['event'].modifications = [modification]
     context.user_data['messages'].append(update.message)
     save_event(update, context)
-    
+
     return ConversationHandler.END
 
 
@@ -165,37 +181,102 @@ def save_event(update, context):
     event = context.user_data['event']
     event.chat_id = update.message.chat_id
     event.save()
-    context.bot.send_message(chat_id=event.chat_id, text="---- Nuevo evento añadido ----\n{}".format(str(event)))
+    context.bot.send_message(chat_id=update.message.chat_id,
+                             text="---- Nuevo evento añadido ----\n{}".format(str(event)))
     remove_messages_chain(context.user_data['messages'])
 
 
 def cancel(update, context):
-    context.bot.send_message(chat_id=update.message.chat_id, text='Evento cancelado')
+    context.bot.send_message(
+        chat_id=update.message.chat_id, text='Proceso cancelado')
     context.user_data['messages'].append(update.message)
     remove_messages_chain(context.user_data['messages'])
-    
+
     return ConversationHandler.END
 
 
 def mod_event(update, context):
-    title = context.args[0]
-    event = Event.objects.get(Q(title=title) & Q(chat_id=update.message.chat_id))
+    result = Event.objects(title__iexact=' '.join(context.args))
+    if len(result) > 1:
+        context.user_data['options'] = result
+        update.message.reply_text(show_candidate_events(result))
+        return MULTIPLE_OPTIONS
+    elif len(result) == 1:
+        context.user_data['event'] = result[0]
+        show_keyboard_options(update, context)
+        return MOD_SELECTION
+    else:
+        context.bot.send_message(
+            chat_id=update.message.chat_id, text="Lo siento, no hay eventos con ese título")
+
+
+def select_option(update, context):
+    try:
+        index = int(update.message.text)
+    except ValueError:
+        update.message.reply_text(
+            "Opcion incorrecta. Vuelve a introducir el numero")
+        return MULTIPLE_OPTIONS
+
+    context.user_data['event'] = context.user_data['options'][index]
+    show_keyboard_options(update, context)
+    return MOD_SELECTION
+
+
+def select_field(update, context):
+    if update.message.text == 'Terminar':
+        finish_mod(update, context)
+    else:
+        context.user_data['selection'] = update.message.text
+        update.message.reply_text('Introduce el nuevo valor para ese campo', reply_markup=ReplyKeyboardRemove())
+        return MOD_APPLY
+
+
+def apply_mod(update, context):
+    selection = context.user_data['selection']
+
+    if selection == 'Descripcion':
+        context.user_data['event'].description = update.message.text
+
+    update.message.reply_text('El campo {} ha sido modificado'.format(selection.lower()))
+    show_keyboard_options(update, context)
+    
+    return MOD_SELECTION
+
+
+def finish_mod(update, context):
+    event = context.user_data['event']
+    event.save()
     event.modify(push__modifications=Modification(author=update.message.from_user.username))
-    context.bot.send_message(chat_id=event.chat_id, text="---- Evento modificado ----\n{}".format(str(event)))
+    context.bot.send_message(
+        chat_id=update.message.chat_id, 
+        text="---- Evento modificado ----\n{}".format(str(event)), 
+        reply_markup=ReplyKeyboardRemove())
 
 
 # Commands definition
 event_handler = ConversationHandler(
     entry_points=[CommandHandler('event', event),
                   CommandHandler('exam', exam)],
-    states={    
+    states={
         DATE: [MessageHandler(Filters.text, date)],
         TITLE: [MessageHandler(Filters.text, title)],
         DESCRIPTION: [MessageHandler(Filters.text, description)],
         EXAM_TYPE: [MessageHandler(Filters.text, exam_type)],
         PROFESSOR: [MessageHandler(Filters.text, professor)],
         SUBJECT: [MessageHandler(Filters.text, subject)],
-        CLASSROOM: [MessageHandler(Filters.text, classroom)]
+        CLASSROOM: [MessageHandler(Filters.text, classroom)],
+        GROUP: [MessageHandler(Filters.text, exam_group)]
+    },
+    fallbacks=[CommandHandler('cancel', cancel)],
+)
+
+mod_event_handler = ConversationHandler(
+    entry_points=[CommandHandler('mod', mod_event)],
+    states={
+        MULTIPLE_OPTIONS: [MessageHandler(Filters.text, select_option)],
+        MOD_SELECTION: [MessageHandler(Filters.text, select_field)],
+        MOD_APPLY: [MessageHandler(Filters.text, apply_mod)]
     },
     fallbacks=[CommandHandler('cancel', cancel)],
 )
@@ -204,4 +285,3 @@ start_handler = CommandHandler('start', start)
 agenda_handler = CommandHandler('agenda', agenda)
 remove_handler = CommandHandler('remove', remove)
 reminder_handler = CommandHandler('reminder', reminder)
-mod_event_handler = CommandHandler('mod', mod_event)

@@ -1,5 +1,4 @@
 from datetime import datetime, time
-import re
 
 # Commands
 def collection_to_string(collection):
@@ -13,7 +12,8 @@ def collection_to_string(collection):
 
 
 def parse_reminder_args(args):
-    reminder_time = time(int(args[0]), int(args[1]), 0)
+    hour, minute = int(args[0]), int(args[1])
+    reminder_time = time(hour, minute, 0)
     message = 'Reminder: {}'.format(' '.join(args[2:]))
     return reminder_time, message
 
@@ -36,10 +36,9 @@ def remove_messages_chain(messages):
     for message in messages[::-1]:
         message.delete()
 
-
-# Models
-def create_modifications_string(modifications):
-    string = ''
-    for m in modifications:
-        string += '\t -> {} - {}\n'.format(m.author, m.date)
+def show_candidate_events(events):
+    string = "Hay varios eventos con el mismo título, dime el numero de la lista que coincide con el que quieres:\n"
+    for index, event in enumerate(events):
+        string += "{} -> {} | {}\n".format(index, event.start, event.description)
+    print(string)
     return string

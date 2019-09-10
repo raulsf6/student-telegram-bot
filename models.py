@@ -1,6 +1,5 @@
 import mongoengine as me
 from datetime import datetime
-from utils import create_modifications_string
 
 # Aqui pondremos la estructura de una colección de mongo (como una tabla en SQL).
 # Cada clase representa la estructura de un documento (como una fila en SQL).
@@ -13,24 +12,25 @@ def date():
 class Modification(me.EmbeddedDocument):
     author = me.StringField(required=True)
     date = me.DateTimeField(default=date)
+
+    def __repr__(self):
+        return '{} - {}'.format(self.author, self.date)
     
 class Event(me.Document):
-    title = me.StringField(primary_key=True)
     chat_id = me.IntField(required=True)
+    title = me.StringField(required=True)
     start = me.DateTimeField(required=True)
     end = me.DateTimeField()
-    description = me.StringField()
+    description = me.StringField(required=True)
     modifications = me.EmbeddedDocumentListField(Modification)
 
     def __str__(self):
-        end = '- {}'.format(self.end) if not (self.end is None) else ''
-        mods_string = create_modifications_string(self.modifications)
-        return 'Titulo: {}\nDescripcion: {}\nFecha: {} {}\nModifications:\n{}'.format(
+        return 'Titulo: {}\nInicio: {}\nFin: {}\nDescripcion: {}\nModificaciones:\n{}'.format(
             self.title,
-            self.description,
             self.start,
-            end,
-            mods_string
+            self.end if self.end else 'No definida',
+            self.description,
+            self.modifications
         )
 
     meta = {'collection': 'Events', 'allow_inheritance': True}
@@ -41,11 +41,13 @@ class Exam(Event):
     professor = me.StringField(required=True)
     exam_type = me.StringField(required=True)
     classroom = me.StringField(required=True)
+    group = me.StringField(required=True)
 
     def __str__(self):
-        exam_str = 'Asignatura: {}\nTipo: {}\nProfesor: {}\nAula: {}\n'.format(
+        exam_str = 'Asignatura: {}\nTipo: {}\nGrupo: {}\nProfesor: {}\nAula: {}\n'.format(
             self.subject, 
-            self.exam_type, 
+            self.exam_type,
+            self.group, 
             self.professor, 
             self.classroom
         )
